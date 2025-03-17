@@ -1,5 +1,15 @@
 import axios from 'axios';
-import fs from 'fs/promises';
+import fs from 'fs';
+import path from 'path';
+
+// Ensure output directory exists
+export const ensureOutputDir = () => {
+  const outputDir = path.join(process.cwd(), 'output');
+  if (!fs.existsSync(outputDir)) {
+    fs.mkdirSync(outputDir, { recursive: true });
+  }
+  return outputDir;
+};
 
 export async function getBase64Image(pathOrUrl) {
   try {

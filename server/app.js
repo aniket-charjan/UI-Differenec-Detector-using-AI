@@ -28,6 +28,11 @@ initDatabase()
 // Routes, currently now using any auth scheme, hence no middleware for auth
 app.use('/api', apiRouter);
 
+// Serve a simple frontend for testing
+app.get('/', (req, res) => {
+  res.sendFile(path.join(process.cwd(), 'public', 'index.html'));
+});
+
 // Start the server
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
