@@ -4,44 +4,12 @@ import { createCanvas, loadImage } from 'canvas';
 import path from 'path';
 import { ensureOutputDir } from '../utils/compare.js';
 import dotenv from 'dotenv';
-import sharp from 'sharp';
 
 dotenv.config();
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
-
-
-async function resizeForClaude(imagePath) {
-  const metadata = await sharp(imagePath).metadata();
-  const { width, height } = metadata;
-
-  const maxSize = 1568;
-  let newWidth = width;
-  let newHeight = height;
-
-  if (width > height && width > maxSize) {
-    newWidth = maxSize;
-    newHeight = Math.round((height / width) * maxSize);
-  } else if (height > width && height > maxSize) {
-    newHeight = maxSize;
-    newWidth = Math.round((width / height) * maxSize);
-  } else if (width === height && width > maxSize) {
-    newWidth = newHeight = maxSize;
-  }
-
-  // Calculate scaling factors
-  const scaleX = width / newWidth;
-  const scaleY = height / newHeight;
-
-  // Resize and save the new image
-  const resizedPath = `${imagePath}_resized.png`;
-  await sharp(imagePath).resize(newWidth, newHeight).toFile(resizedPath);
-  console.log(`✅ Resized ${imagePath} → ${newWidth}x${newHeight}`);
-
-  return { resizedPath, scaleX, scaleY };
-}
 
 
 // Compare two images and generate a report with highlighted differences
@@ -64,41 +32,63 @@ async function compareImages(image1Path, image2Path) {
           content: [
             {
               type: "text",
-              text: `Compare these two website screenshots and provide a detailed analysis of all UI differences. Also, return the processed image dimensions before analysis.
-
-          First, return this JSON:
-          \`\`\`json
-          {
-            "processed_dimensions": {
-              "image1": { "width": W1, "height": H1 },
-              "image2": { "width": W2, "height": H2 }
-            }
-          }
-          \`\`\`
-
-          Then, return the difference analysis in this format:
-
-          \`\`\`json
-          {
-            "differences": [
-              {
-                "type": "text_change",
-                "location": "header",
-                "description": "Question mark changed to exclamation mark",
-                "coordinates": {
-                  "x1": 123, "y1": 456, "x2": 789, "y2": 101
-                },
-                "highlight_area": {
-                  "x1": 113, "y1": 446, "x2": 799, "y2": 111
-                },
-                "before": "text before",
-                "after": "text after"
+              text: `Compare these two website screenshots and provide a detailed analysis of all UI differences. Focus on:
+            
+            1. Text changes (different wording, punctuation, etc.)
+            2. Button text or appearance changes
+            3. Layout differences (element position shifts, resizing, alignment changes)
+            4. Element additions or removals (new buttons, missing images, deleted sections)
+            5. Color or style changes (background, font, borders, shadows)
+            
+            For each difference found, provide a JSON summary with **precise coordinates** for the affected area, ensuring that the bounding box fully encloses the change and is large enough to be clearly highlighted.
+            
+            Additionally, **before analyzing the images**, first return the dimensions you have processed for each image in this format:
+            
+            \`\`\`json
+            {
+              "processed_dimensions": {
+                "image1": { "width": W1, "height": H1 },
+                "image2": { "width": W2, "height": H2 }
               }
-            ]
-          }
-          \`\`\`
-          `,
-            },
+            }
+            \`\`\`
+            
+            Then, proceed with the difference analysis using these dimensions as the reference.
+            
+            The format for differences should be:
+            
+            \`\`\`json
+            {
+              "differences": [
+                {
+                  "type": "text_change", 
+                  "location": "header",
+                  "description": "Question mark changed to exclamation mark",
+                  "coordinates": {
+                    "x1": 123, "y1": 456, "x2": 789, "y2": 101
+                  },
+                  "highlight_area": {
+                    "x1": 113, "y1": 446, "x2": 799, "y2": 111
+                  },
+                  "before": "text before",
+                  "after": "text after"
+                }
+              ]
+            }
+            \`\`\`
+            
+            - **processed_dimensions**: The actual width and height Claude used for each image.
+            - **coordinates**: Exact bounding box for the changed element with ~5 px clearance for each UI element on all sides.
+            - **highlight_area**: Slightly expanded bounding box (~10px margin) for clear visual emphasis.
+            - Ensure all coordinates are in absolute pixel values based on the processed image dimensions.
+            - If multiple elements are affected, provide multiple bounding boxes.
+            - If no significant differences are found, return:
+            \`\`\`json
+            { "differences": [] }
+            \`\`\`
+            `
+            }
+            ,
             {
               type: "image",
               source: { type: "base64", media_type: "image/png", data: base64Image1 }
